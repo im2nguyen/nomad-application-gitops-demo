@@ -1,0 +1,95 @@
+# This workflow builds Docker images for the frontend and backend,
+# pushes them to GitHub Container Registry (GHCR), saves the image
+# paths to files at the root of the directory, bumps the tag
+# version, and creates a new tag.
+# 
+# The completion of this workflow triggers the deployment 
+# workflow, deploy_terramino_nomad.yml
+# ----------------------------------------------------------------
+
+name: Build Terramino application images
+
+on:
+  push:
+    # application logic directories
+    paths:
+      - app/**
+
+env:
+  REGISTRY: ghcr.io
+  FRONTEND_IMAGE_NAME: terramino-frontend
+  BACKEND_IMAGE_NAME: terramino-backend
+
+jobs:
+  build-terramino:
+    name: Build terramino images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Set Timestamp
+        id: timestamp
+        run: echo "TIMESTAMP=$(date +%s)" >> $GITHUB_ENV
+
+      - name: Set repository name
+        id: set-repo
+        run: echo "REPO=${GITHUB_REPOSITORY@L}" >> "${GITHUB_ENV}"
+
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Frontend image build and push
+      - name: Build and push frontend image
+        id: frontend-push
+        uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4
+        with:
+          context: app/
+          file: app/Dockerfile.frontend
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.REPO }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ env.TIMESTAMP }}
+
+      - id: get-frontend-build-name
+        name: Save frontend image path to file
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          imageName=${{ fromJSON(steps.frontend-push.outputs.metadata)['image.name'] }}
+          echo "$imageName" > latest-frontend.version
+
+      # Backend image build and push
+      - name: Build and push backend image
+        id: backend-push
+        uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4
+        with:
+          context: app/
+          file: app/Dockerfile.backend
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.REPO }}/${{ env.BACKEND_IMAGE_NAME }}:${{ env.TIMESTAMP }}
+
+      - id: get-backend-build-name
+        name: Save backend image path to file
+        run: |
+          imageName=${{ fromJSON(steps.backend-push.outputs.metadata)['image.name'] }}
+          echo "$imageName" > latest-backend.version
+
+      - name: Commit image files to repo
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add latest-frontend.version latest-backend.version
+          git commit -m "Updated frontend and backend image URIs."
+          git push
+
+      - name: Bump version and create tag
+        working-directory: .github/scripts
+        run: ./bump_and_create_tag.sh

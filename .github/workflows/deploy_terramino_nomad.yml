@@ -1,0 +1,56 @@
+# This workflow reads the application image versions from the root
+# of the repository, updates the application jobspec, and submits
+# the jobspec to Nomad.
+# 
+# This workflow is triggered upon completion of the upstream
+# workflow, build_terramino_docker_images.yml
+# Or manually from the Actions page in the GitHub UI.
+# ----------------------------------------------------------------
+
+# name: Deploy Terramino to Nomad
+
+# on:
+#   workflow_run:
+#     workflows: [Build Terramino application images]
+#     types:
+#       - completed
+#   workflow_dispatch:
+
+# env:
+#   NOMAD_VERSION: "1.9.7"
+#   FRONTEND_IMAGE_FILENAME: "latest-frontend.version"
+#   BACKEND_IMAGE_FILENAME: "latest-backend.version"
+
+# jobs:
+#   update-jobspec:
+#     name: Update the Nomad jobspec with terramino images
+#     runs-on: ubuntu-latest
+#     permissions:
+#       contents: read
+#     steps:
+#       - name: Checkout repo
+#         uses: actions/checkout@v4
+
+#       - name: Update jobspec
+#         run: |
+#           sudo sed -i "s|_TERRAMINO_FRONTEND_IMAGE|$(cat ${{ env.FRONTEND_IMAGE_FILENAME }})|g" ${{ github.workspace }}/workflow-files/terramino.nomad.hcl
+#           sudo sed -i "s|_TERRAMINO_BACKEND_IMAGE|$(cat ${{ env.BACKEND_IMAGE_FILENAME }})|g" ${{ github.workspace }}/workflow-files/terramino.nomad.hcl
+
+#       - name: DEBUG - Print jobspec
+#         run: |
+#           cat ${{ github.workspace }}/workflow-files/terramino.nomad.hcl
+
+#       - name: Set up Nomad CLI
+#         id: nomad-setup
+#         uses: hashicorp/setup-nomad@main
+#         with:
+#           version: ${{ env.PRODUCT_VERSION }}
+
+#       - name: DEBUG - Check Nomad version
+#         run: |
+#           nomad version
+
+#       - name: Submit job to Nomad
+#         run: |
+#           export NOMAD_SKIP_VERIFY=true
+#           nomad job run -address=${{ secrets.NOMAD_ADDR }} -token=${{ secrets.NOMAD_TOKEN }} ${{ github.workspace }}/workflow-files/terramino.nomad.hcl

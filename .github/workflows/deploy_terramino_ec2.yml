@@ -1,0 +1,65 @@
+# This workflow reads the AMI value from latest-ami.version at the
+# root of the repo and uses Terraform to deploy an EC2 instance
+# running the image. It then waits 30 seconds and destroys the
+# infrastructure with Terraform.
+# 
+# This workflow is triggered upon completion of the upstream
+# workflow, build_terramino_ami.yml
+# Or manually from the Actions page in the GitHub UI.
+# ----------------------------------------------------------------
+
+# name: Deploy Terramino to EC2
+
+# on:
+#   workflow_run:
+#     workflows: [Build Terramino AMI]
+#     types:
+#       - completed
+#   workflow_dispatch:
+
+# env:
+#   AWS_REGION: ${{ secrets.AWS_REGION }}
+
+# jobs:
+#   deploy-terramino-ec2:
+#     name: Deploy Terramino to EC2
+#     runs-on: ubuntu-latest
+#     permissions:
+#       contents: write
+#       id-token: write
+#     steps:
+#       - name: Checkout repo
+#         uses: actions/checkout@v4
+
+#       - name: Configure AWS Credentials
+#         uses: aws-actions/configure-aws-credentials@8c3f20df09ac63af7b3ae3d7c91f105f857d8497 # v4.0.0
+#         with:
+#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+#           aws-region: ${{ secrets.AWS_REGION }}
+
+#       - uses: hashicorp/setup-terraform@v3
+#         with:
+#           terraform_version: "1.11"
+
+#       - name: Get AMI and region from file
+#         run: |
+#           echo "AMI_REGION=$(cat latest-ami.version | awk -F ':' '{print $1}')" >> $GITHUB_ENV
+#           echo "AMI_VERSION=$(cat latest-ami.version | awk -F ':' '{print $2}')" >> $GITHUB_ENV
+
+#       - name: Create EC2 with Terraform
+#         working-directory: workflow-files
+#         run: |
+#           terraform init
+#           terraform apply -auto-approve -var="region=${{ env.AMI_REGION }}" -var="ami=${{ env.AMI_VERSION }}"
+
+#       # Wait for verification of app
+#       - name: Sleep for 30 seconds
+#         run: |
+#           sleep 30
+
+#       - name: Clean up with Terraform
+#         working-directory: workflow-files
+#         run: |
+#           terraform destroy -auto-approve -var="region=${{ env.AMI_REGION }}" -var="ami=${{ env.AMI_VERSION }}"

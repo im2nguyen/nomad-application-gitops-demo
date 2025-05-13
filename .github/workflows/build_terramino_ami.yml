@@ -1,0 +1,71 @@
+# This workflow builds an Amazon Machine Image (AMI) for the
+# Terramino example application with Packer, pushes it to AWS,
+# and outputs image path to a file at the root of the directory.
+# 
+# The completion of this workflow triggers the deployment 
+# workflow, deploy_terramino_ec2.yml
+# ----------------------------------------------------------------
+
+# name: Build Terramino AMI
+
+# on:
+#   push:
+#     # application logic directories
+#     paths:
+#       - app/**
+
+# env:
+#   PACKER_DIR: workflow-files
+#   AWS_REGION: ${{ secrets.AWS_REGION }}
+
+# jobs:
+#   build-terramino:
+#     name: Build terramino AMI
+#     runs-on: ubuntu-latest
+#     permissions:
+#       contents: write
+#       packages: write
+#       id-token: write
+#     steps:
+#       - name: Set Timestamp
+#         id: timestamp
+#         run: echo "TIMESTAMP=$(date +%s)" >> $GITHUB_ENV
+
+#       - name: Checkout repo
+#         uses: actions/checkout@v4
+
+#       - name: Setup Packer
+#         uses: hashicorp/setup-packer@main
+#         id: setup
+
+#      - name: Configure AWS Credentials
+#        uses: aws-actions/configure-aws-credentials@8c3f20df09ac63af7b3ae3d7c91f105f857d8497 # v4.0.0
+#        with:
+#          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+#          aws-region: ${{ secrets.AWS_REGION }}
+
+#       - name: Packer init and build
+#         working-directory: workflow-files
+#         run: |
+#           packer init .
+#           PKR_VAR_region="$AWS_REGION" packer build image.pkr.hcl
+
+#       - name: Save AMI to file
+#         id: get-frontend-build-name
+#         env:
+#           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#         run: |
+#           imageRegionName=$(jq -r '.builds[] | .artifact_id' workflow-files/packer_manifest.json)
+#           echo "$imageRegionName" > latest-ami.version
+
+#       - name: Commit image file to repo
+#         env:
+#           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#         run: |
+#           git config user.name "github-actions"
+#           git config user.email "github-actions[bot]@users.noreply.github.com"
+#           git add latest-ami.version
+#           git commit -m "Updated AMI."
+#           git push
